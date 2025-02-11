@@ -1,5 +1,6 @@
 package com.example.calculator
 
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,12 +15,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -55,6 +58,14 @@ class MainActivity : ComponentActivity() {
 fun CalculatorApp(viewModel: CalculatorViewModel){
     val input by viewModel.input.collectAsStateWithLifecycle()
     val result by viewModel.result.collectAsStateWithLifecycle()
+//    val showAdvancedButtons by viewModel.showAdvancedButtons.collectAsStateWithLifecycle()
+
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    if (isLandscape) {
+
+    }
 
     Column(
         modifier = Modifier
@@ -88,18 +99,29 @@ fun CalculatorApp(viewModel: CalculatorViewModel){
 
 @Composable
 fun CalculatorButtons(onButtonClick: (String) -> Unit) {
-    val buttons = listOf(
-        listOf("7", "8", "9", "/"),
-        listOf("4", "5", "6", "*"),
-        listOf("1", "2", "3", "-"),
-        listOf("0", "C", "=", "+")
+
+//    val buttonFontSize = if (showAdvancedButtons) 18.sp else 24.sp
+//    val buttonSize = if (showAdvancedButtons) 64.dp else 80.dp
+
+    val basicButtons = listOf(
+        listOf("(", ")", "C", "/"),
+        listOf("7", "8", "9", "*"),
+        listOf("4", "5", "6", "-"),
+        listOf("1", "2", "3", "+"),
+        listOf("0", ".", "=", "%")
+    )
+
+    val advancedButtons = listOf(
+        listOf("√", "x²", "sin", "cos"),
+        listOf("tan", "log", "ln", "π"),
+        listOf("e", "^", "mod", "%")
     )
 
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        buttons.forEach { row ->
+        basicButtons.forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -122,6 +144,9 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit) {
         }
     }
 }
+
+@Composable
+fun LandscapeLayout()
 
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
