@@ -22,7 +22,6 @@ class CalculatorViewModel @Inject constructor(
     val result: StateFlow<String> = _result
 
     private val _showAdvancedButtons = MutableStateFlow(false)
-    val showAdvancedButtons: StateFlow<Boolean> = _showAdvancedButtons
 
     fun onButtonClick(buttonValue: String) {
         when (buttonValue) {
@@ -202,9 +201,5 @@ class CalculatorViewModel @Inject constructor(
         } else {
             null
         }
-    }
-
-    private fun toggleAdvancedButtons() {
-        _showAdvancedButtons.value = !_showAdvancedButtons.value
     }
 }
