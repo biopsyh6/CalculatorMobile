@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.calculator.presentation.viewmodel.CalculatorViewModel
 import com.example.calculator.ui.theme.CalculatorTheme
@@ -44,6 +46,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        installSplashScreen()
         enableEdgeToEdge()
         setContent {
             CalculatorApp(viewModel)
@@ -63,13 +66,15 @@ class MainActivity : ComponentActivity() {
 fun CalculatorApp(viewModel: CalculatorViewModel){
     val input by viewModel.input.collectAsStateWithLifecycle()
     val result by viewModel.result.collectAsStateWithLifecycle()
+    val useDegrees by  viewModel.useDegrees.collectAsStateWithLifecycle()
 //    val showAdvancedButtons by viewModel.showAdvancedButtons.collectAsStateWithLifecycle()
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     if (isLandscape) {
-        LandscapeLayout(input, result, viewModel::onButtonClick)
+        LandscapeLayout(input, result, viewModel::onButtonClick, useDegrees,
+            onToggleDegrees = { viewModel.toggleUseDegrees() })
     } else {
         PortraitLayout(input, result, viewModel::onButtonClick)
     }
@@ -129,7 +134,7 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit) {
         listOf("(", ")", "%", "C", "7", "8", "9", "/"),
         listOf("x²", "^", "√", "!", "4", "5", "6", "*"),
         listOf("sin", "cos", "tan", "1/x", "1", "2", "3", "-"),
-        listOf("log", "ln", "π", "e", "0", ".", "=", "+")
+        listOf("lg", "ln", "π", "e", "0", ".", "=", "+")
         )
 
 //    val advancedButtons = listOf(
@@ -290,13 +295,19 @@ fun PortraitLayout(input: String, result: String, onButtonClick: (String) -> Uni
 }
 
 @Composable
-fun LandscapeLayout(input: String, result: String, onButtonClick: (String) -> Unit) {
+fun LandscapeLayout(input: String,
+                    result: String,
+                    onButtonClick: (String) -> Unit,
+                    useDegrees: Boolean,
+                    onToggleDegrees: (Boolean) -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+
         // Field for Enter and Result
         Row(
             modifier = Modifier
@@ -327,7 +338,20 @@ fun LandscapeLayout(input: String, result: String, onButtonClick: (String) -> Un
             }
         }
         // Calculator Buttons
-        CalculatorButtons(onButtonClick = onButtonClick)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(8.dp)
+        ) {
+            Text(text = "Radians")
+            Switch(
+                checked = useDegrees,
+                onCheckedChange = onToggleDegrees,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+            Text(text = "Degrees")
+            CalculatorButtons(onButtonClick = onButtonClick)
+        }
+
 //        Box(
 //            modifier = Modifier
 //                .fillMaxWidth()

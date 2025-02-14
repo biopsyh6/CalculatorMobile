@@ -7,8 +7,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.math.BigInteger
 import javax.inject.Inject
 import kotlin.math.exp
+import kotlin.math.ln
+import kotlin.math.log10
 
 @HiltViewModel
 class CalculatorViewModel @Inject constructor(
@@ -20,6 +23,9 @@ class CalculatorViewModel @Inject constructor(
 
     private val _result = MutableStateFlow("") // Result
     val result: StateFlow<String> = _result
+
+    private val _useDegrees = MutableStateFlow(true)
+    val useDegrees: StateFlow<Boolean> = _useDegrees
 
     private val _showAdvancedButtons = MutableStateFlow(false)
 
@@ -33,7 +39,16 @@ class CalculatorViewModel @Inject constructor(
             "x²" -> squareNumber()
             "√" -> squareRoot()
             "%" -> calculatePercentage()
-//            "Доп." -> toggleAdvancedButtons()
+            "!" -> calculateFactorial()
+            "^" -> calculatePower()
+            "1/x" -> calculateInverse()
+            "sin" -> addTrigonometricFunction("sin")
+            "cos" -> addTrigonometricFunction("cos")
+            "tan" -> addTrigonometricFunction("tan")
+            "π" -> _input.value += "π"
+            "e" -> _input.value += "e"
+            "lg" -> calculateDecimalLogarithm()
+            "ln" -> calculateNaturalLogarithm()
             "." -> {
                 if (canAddDecimal()) {
                     _input.value += buttonValue
@@ -60,6 +75,10 @@ class CalculatorViewModel @Inject constructor(
         }
     }
 
+    fun toggleUseDegrees() {
+        _useDegrees.value = !_useDegrees.value
+    }
+
     private fun calculateResult() {
         val expression = _input.value
         if (expression.isNotEmpty()) {
@@ -75,7 +94,13 @@ class CalculatorViewModel @Inject constructor(
         if (currentInput.isNotEmpty()) {
             val lastNumber = extractLastNumber(currentInput)
             if (lastNumber != null) {
-                _input.value = currentInput.dropLast(lastNumber.length) + "($lastNumber)^2"
+                val isInBrackets = currentInput.endsWith("($lastNumber)")
+                val newExpression = if (isInBrackets) {
+                    currentInput.dropLast(lastNumber.length + 2) + "($lastNumber)^2"
+                } else {
+                    currentInput.dropLast(lastNumber.length) + "($lastNumber)^2"
+                }
+                _input.value = newExpression
             }
         }
     }
@@ -85,13 +110,29 @@ class CalculatorViewModel @Inject constructor(
         if (currentInput.isNotEmpty()) {
             val lastNumber = extractLastNumber(currentInput)
             if (lastNumber != null){
-                _input.value = currentInput.dropLast(lastNumber.length) + "sqrt($lastNumber)"
+                try {
+                    val number = lastNumber.toDouble()
+                    if (number < 0) {
+                        _result.value = "Error"
+                        return
+                    }
+                    val isInBrackets = currentInput.endsWith("($lastNumber)")
+                    val newExpression = if (isInBrackets) {
+                        currentInput.dropLast(lastNumber.length + 2) + "sqrt($lastNumber)"
+                    } else {
+                        currentInput.dropLast(lastNumber.length) + "sqrt($lastNumber)"
+                    }
+                    _input.value = newExpression
+                } catch (e: NumberFormatException) {
+                    _result.value = "Error: Invalid number"
+                }
             }
         }
     }
 
     private fun extractLastNumber(input: String): String? {
-        val regex = Regex("""(\d+\.?\d*)""")
+//        val regex = Regex("""-?\d+\.?\d*|π|e""")
+        val regex = Regex("""-?\d+\.?\d*|π|e|\([^()]+\)""")
         val matches = regex.findAll(input)
         return matches.lastOrNull()?.value
     }
@@ -129,7 +170,7 @@ class CalculatorViewModel @Inject constructor(
         if (currentInput.isEmpty()) return false
 
         val lastChar = currentInput.last()
-        return lastChar.isDigit() || lastChar == ')'
+        return lastChar.isDigit() || lastChar == ')' || lastChar == 'π' || lastChar == 'e'
     }
 
     private fun calculatePercentage() {
@@ -200,6 +241,162 @@ class CalculatorViewModel @Inject constructor(
             calculationResult.result
         } else {
             null
+        }
+    }
+
+    private fun factorial(n: Int): BigInteger {
+        return if (n <= 1) BigInteger.ONE else BigInteger.valueOf(n.toLong()) * factorial(n - 1)
+    }
+
+    private fun extractLastNumberWithBrackets(input: String): String? {
+        val regex = Regex("""\(([-]?\d+)\)|(-?\d+)""")
+        val matches = regex.findAll(input)
+        return matches.lastOrNull()?.groupValues?.filterNotNull()?.last()
+    }
+
+    private fun calculateFactorial() {
+        var currentInput = _input.value
+        if (currentInput.isNotEmpty()) {
+            val lastChar = currentInput.last()
+            if (lastChar in listOf('+', '-', '*', '/')) {
+                _input.value = currentInput.dropLast(1)
+                currentInput = _input.value
+            }
+
+            val isInBrackets = currentInput.endsWith(")") && currentInput.contains("(")
+            val lastNumber = if (isInBrackets) {
+                val startIndex = currentInput.lastIndexOf("(") + 1
+                val endIndex = currentInput.lastIndexOf(")")
+                currentInput.substring(startIndex, endIndex)
+            } else {
+                extractLastNumber(currentInput)
+            }
+
+            if (lastNumber != null) {
+                try {
+                    val number = lastNumber.toInt()
+                    if (number >= 0) {
+                        val factorialResult = factorial(number)
+                        _input.value = if (isInBrackets) {
+                            currentInput.dropLast(lastNumber.length + 2) + factorialResult.toString()
+                        } else {
+                            currentInput.dropLast(lastNumber.length) + factorialResult.toString()
+                        }
+                    } else {
+                        _result.value = "Error"
+                    }
+                } catch (e:NumberFormatException) {
+                    _result.value = "Error: Invalid number"
+                }
+            }
+        }
+    }
+
+    private fun calculateInverse() {
+        val currentInput = _input.value
+        if (currentInput.isNotEmpty()) {
+            val lastNumber = extractLastNumber(currentInput)
+            if (lastNumber != null) {
+                _input.value = currentInput.dropLast(lastNumber.length) + "($lastNumber)^(-1)"
+            }
+        }
+    }
+
+    private fun calculatePower() {
+        val currentInput = _input.value
+        if (currentInput.isNotEmpty()) {
+            val lastChar = currentInput.last()
+            if (lastChar in listOf('+', '-', '*', '/')) {
+                _input.value = currentInput.dropLast(1) + "^"
+            } else {
+                _input.value = currentInput + "^"
+            }
+        }
+    }
+
+    private fun addTrigonometricFunction(function: String) {
+        val currentInput = _input.value
+        if (currentInput.isNotEmpty()) {
+            val lastNumber = extractLastNumber(currentInput)
+            if (lastNumber != null) {
+                val newExpression = if (_useDegrees.value && "π" !in lastNumber) {
+                    if (lastNumber.startsWith("(") && lastNumber.endsWith(")")) {
+                        "$function($lastNumber * π / 180)"
+                    } else {
+                        "$function($lastNumber * π / 180)"
+                    }
+                } else {
+                    if (lastNumber.startsWith("(") && lastNumber.endsWith(")")) {
+                        "$function$lastNumber"
+                    } else {
+                        "$function($lastNumber)"
+                    }
+                }
+                _input.value = currentInput.dropLast(lastNumber.length) + newExpression
+            }
+        }
+    }
+
+    private fun calculateDecimalLogarithm() {
+        val currentInput = _input.value
+        if (currentInput.isNotEmpty()) {
+            val lastNumber = extractLastNumber(currentInput)
+            if (lastNumber != null) {
+                try {
+                    val number = evaluateLastNumber(lastNumber)
+                    if (number > 0) {
+                        val logValue = log10(number)
+                        val newExpression = if (currentInput.endsWith("($lastNumber)")) {
+                            currentInput.dropLast(lastNumber.length + 2) + logValue.toString()
+                        } else {
+                            currentInput.dropLast(lastNumber.length) + logValue.toString()
+                        }
+                        _input.value = newExpression
+                    } else {
+                        _result.value = "Error"
+                    }
+                } catch (e: NumberFormatException) {
+                    _result.value = "Error: incorrect number"
+                }
+            }
+        }
+    }
+
+    private fun calculateNaturalLogarithm() {
+        val currentInput = _input.value
+        if (currentInput.isNotEmpty()) {
+            val lastNumber = extractLastNumber(currentInput)
+            if (lastNumber != null) {
+                try {
+                    val number = evaluateLastNumber(lastNumber)
+                    if (number > 0) {
+                        val lnValue = ln(number)
+                        val newExpression = if (currentInput.endsWith("($lastNumber)")) {
+                            currentInput.dropLast(lastNumber.length + 2) + lnValue.toString()
+                        } else {
+                            currentInput.dropLast(lastNumber.length) + lnValue.toString()
+                        }
+                        _input.value = newExpression
+                    } else {
+                        _result.value = "Error"
+                    }
+                } catch (e: NumberFormatException) {
+                    _result.value = "Error: incorrect number"
+                }
+            }
+        }
+    }
+
+    private fun evaluateLastNumber(lastNumber: String): Double {
+        return if (lastNumber == "π") {
+            Math.PI
+        } else if (lastNumber == "e") {
+            Math.E
+        } else if (lastNumber.startsWith("(") && lastNumber.endsWith(")")) {
+            val expression = lastNumber.removeSurrounding("(", ")")
+            repository.calculate(expression).result ?: throw NumberFormatException()
+        } else {
+            lastNumber.toDouble()
         }
     }
 }

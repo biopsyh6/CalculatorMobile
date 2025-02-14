@@ -7,7 +7,10 @@ class CalculateExpressionUseCase {
     operator fun invoke(expression: String): CalculationResult {
         return try {
             val result = ExpressionBuilder(expression)
+                .variables("π", "e")
                 .build()
+                .setVariable("π", Math.PI)
+                .setVariable("e", Math.E)
                 .evaluate()
             CalculationResult(result)
         } catch (e: Exception) {
