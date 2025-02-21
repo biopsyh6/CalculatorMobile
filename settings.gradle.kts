@@ -23,3 +23,4 @@ rootProject.name = "Calculator"
 include(":app")
 include(":data")
 include(":domain")
+include(":utils")

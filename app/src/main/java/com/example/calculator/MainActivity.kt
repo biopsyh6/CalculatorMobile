@@ -1,11 +1,20 @@
 package com.example.calculator
 
+import android.content.Context
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,16 +29,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,19 +55,38 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.calculator.presentation.viewmodel.CalculatorViewModel
 import com.example.calculator.ui.theme.CalculatorTheme
+import com.example.utils.SoundManager
+import com.example.utils.TiltManager
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    private lateinit var tiltManager: TiltManager
+
     private val viewModel: CalculatorViewModel by viewModels()
+    private lateinit var vibrator: Vibrator
+
+    @Inject
+    lateinit var soundManager: SoundManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        soundManager.loadSound(this, R.raw.roblox_death_sound_effect)
+        tiltManager = TiltManager(this)
         installSplashScreen()
         enableEdgeToEdge()
+
+        vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+
         setContent {
-            CalculatorApp(viewModel)
+            CalculatorApp(
+                viewModel = viewModel,
+                vibrate = ::vibrate,
+                playErrorSound = { soundManager.playSound(R.raw.roblox_death_sound_effect) },
+                tiltManager = tiltManager
+            )
 //            CalculatorTheme {
 //                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
 //                    Greeting(
@@ -60,53 +97,120 @@ class MainActivity : ComponentActivity() {
 //            }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        // Listen accelerometer data
+        tiltManager.startListening { x, y, z ->
+            updateTiltEffect(x, y, z)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        tiltManager.stopListening()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        soundManager.release()
+    }
+
+    private fun vibrate() {
+        if (vibrator.hasVibrator()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(50,
+                    VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                vibrator.vibrate(50)
+            }
+        }
+    }
+
+    private fun updateTiltEffect(x: Float, y: Float, z: Float) {
+
+    }
 }
 
 @Composable
-fun CalculatorApp(viewModel: CalculatorViewModel){
+fun CalculatorApp(viewModel: CalculatorViewModel,
+                  vibrate: () -> Unit,
+                  playErrorSound: () -> Unit,
+                  tiltManager: TiltManager){
     val input by viewModel.input.collectAsStateWithLifecycle()
     val result by viewModel.result.collectAsStateWithLifecycle()
     val useDegrees by  viewModel.useDegrees.collectAsStateWithLifecycle()
-//    val showAdvancedButtons by viewModel.showAdvancedButtons.collectAsStateWithLifecycle()
+
+    var color1 by remember { mutableStateOf(Color.White) }
+    var color2 by remember { mutableStateOf(Color.Gray) }
+
+    val animatedColor1 by animateColorAsState(targetValue = color1,
+        animationSpec = tween(1000, easing = LinearEasing))
+    val animatedColor2 by animateColorAsState(targetValue = color2,
+        animationSpec = tween(1000, easing = LinearEasing))
+
+//    var backgroundColor by remember { mutableStateOf(Color.White) }
+    var gradientColors by remember { mutableStateOf(listOf(Color.White, Color.Gray)) }
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    if (isLandscape) {
-        LandscapeLayout(input, result, viewModel::onButtonClick, useDegrees,
-            onToggleDegrees = { viewModel.toggleUseDegrees() })
-    } else {
-        PortraitLayout(input, result, viewModel::onButtonClick)
+
+    LaunchedEffect(Unit) {
+        tiltManager.startListening { x, y, z ->
+            val red1 = ((x + 12) / 24).coerceIn(0f, 1f)
+            val green1 = ((y + 12) / 24).coerceIn(0f, 1f)
+            val blue1 = ((z + 12) / 24).coerceIn(0f, 1f)
+
+            val red2 = ((y + 12) / 24).coerceIn(0f, 1f)
+            val green2 = ((z + 12) / 24).coerceIn(0f, 1f)
+            val blue2 = ((x + 12) / 24).coerceIn(0f, 1f)
+
+
+            color1 = Color(red1, green1, blue1, 1f)
+            color2 = Color(red2, green2, blue2, 1f)
+//            gradientColors = listOf(
+//                Color(red1, green1, blue1, 1f),
+//                Color(red2, green2, blue2, 1f)
+//            )
+//            backgroundColor = Color(red, green, blue, 1f)
+        }
     }
 
-//    Column(
-//        modifier = Modifier
-//            .fillMaxSize()
-//            .padding(16.dp),
-//        verticalArrangement = Arrangement.Center
-//    ) {
-//        // Enter
-//        Text(
-//            text = input,
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .padding(8.dp),
-//            fontSize = 24.sp,
-//            fontWeight = FontWeight.Bold
-//        )
-//        // Result
-//        Text(
-//            text = result,
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .padding(8.dp),
-//            fontSize = 32.sp,
-//            fontWeight = FontWeight.Bold
-//        )
-//        Spacer(modifier = Modifier.height(16.dp))
-//        // Calculator buttons
-//        CalculatorButtons(onButtonClick = viewModel::onButtonClick)
-//    }
+    if (result.startsWith("Error")) {
+        LaunchedEffect(result) {
+            playErrorSound()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.radialGradient(
+                    colors = listOf(animatedColor1, animatedColor2),
+                    center = Offset(500f, 500f),
+                    radius = 700f
+                )
+            )
+    ) {
+        if (isLandscape) {
+            LandscapeLayout(
+                input = input,
+                result = result,
+                onButtonClick = { viewModel.onButtonClick(it); vibrate() },
+                useDegrees = useDegrees,
+                onToggleDegrees = { viewModel.toggleUseDegrees() }
+            )
+        } else {
+            PortraitLayout(
+                input = input,
+                result = result,
+                onButtonClick = { viewModel.onButtonClick(it); vibrate() }
+            )
+        }
+    }
+
 }
 
 @Composable
@@ -119,8 +223,6 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit) {
     val buttonAspectRatio = if (isLandscape) 1.5f else 1f
     val buttonSize = if (isLandscape) 64.dp else 80.dp
 
-//    val buttonFontSize = if (showAdvancedButtons) 18.sp else 24.sp
-//    val buttonSize = if (showAdvancedButtons) 64.dp else 80.dp
 
     val basicButtons = listOf(
         listOf("(", ")", "C", "/"),
@@ -164,7 +266,7 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit) {
                 // advancedButtons
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     advancedButtons.forEach { row ->
                         Row(
@@ -194,35 +296,6 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit) {
                         }
                     }
                 }
-                // basicButtons
-//                Column(
-//                    modifier = Modifier.weight(1f),
-//                    verticalArrangement = Arrangement.spacedBy(8.dp)
-//                ) {
-//                    basicButtons.forEach { row ->
-//                        Row(
-//                            modifier = Modifier.fillMaxWidth(),
-//                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-//                        ) {
-//                            row.forEach { buttonValue ->
-//                                Button(
-//                                    onClick = { onButtonClick(buttonValue) },
-//                                    modifier = Modifier
-//                                        .aspectRatio(buttonAspectRatio)
-//                                        .size(buttonSize)
-//                                        .weight(1f, fill = false),
-//                                    contentPadding = PaddingValues(0.dp)
-//                                ) {
-//                                    Text(
-//                                        text = buttonValue,
-//                                        fontSize = buttonFontSize,
-//                                        fontWeight = FontWeight.Bold
-//                                    )
-//                                }
-//                            }
-//                        }
-//                    }
-//                }
             }
         } else {
           // basicButtons
@@ -272,23 +345,42 @@ fun PortraitLayout(input: String, result: String, onButtonClick: (String) -> Uni
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Field for Enter
-        Text(
-            text = input,
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
-        )
+                .padding(8.dp)
+                .background(Color(0xFFEEEEEE), shape = RoundedCornerShape(12.dp))
+                .border(2.dp, Color.Gray, shape = RoundedCornerShape(12.dp))
+                .padding(16.dp)
+        ) {
+            Text(
+                text = input,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.End,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         // Field for Result
-        Text(
-            text = result,
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold
-        )
+                .padding(8.dp)
+                .background(Color(0xFFDFFFD6), shape = RoundedCornerShape(12.dp))
+                .border(2.dp, Color.Green, shape = RoundedCornerShape(12.dp))
+                .padding(16.dp)
+        ) {
+            Text(
+                text = result,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.End,
+                color = Color(0xFF388E3C),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
         CalculatorButtons(onButtonClick = onButtonClick)
     }
@@ -304,7 +396,7 @@ fun LandscapeLayout(input: String,
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(2.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
 
@@ -319,22 +411,39 @@ fun LandscapeLayout(input: String,
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.Center
             ) {
-                Text(
-                    text = input,
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(8.dp),
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = result,
+                        .padding(8.dp)
+                        .background(Color(0xFFEEEEEE), shape = RoundedCornerShape(12.dp))
+                        .border(2.dp, Color.Gray, shape = RoundedCornerShape(12.dp))
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = input,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(8.dp),
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                        .padding(8.dp)
+                        .background(Color(0xFFDFFFD6), shape = RoundedCornerShape(12.dp))
+                        .border(2.dp, Color.Green, shape = RoundedCornerShape(12.dp))
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = result,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.End,
+                        color = Color(0xFF388E3C),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         }
         // Calculator Buttons
@@ -351,14 +460,6 @@ fun LandscapeLayout(input: String,
             Text(text = "Degrees")
             CalculatorButtons(onButtonClick = onButtonClick)
         }
-
-//        Box(
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .weight(0.7f)
-//        ) {
-//
-//        }
     }
 }
 

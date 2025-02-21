@@ -7,11 +7,13 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.lang.StrictMath.round
 import java.math.BigInteger
 import javax.inject.Inject
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.log10
+import kotlin.math.pow
 
 @HiltViewModel
 class CalculatorViewModel @Inject constructor(
@@ -49,6 +51,12 @@ class CalculatorViewModel @Inject constructor(
             "e" -> _input.value += "e"
             "lg" -> calculateDecimalLogarithm()
             "ln" -> calculateNaturalLogarithm()
+            in "0" .. "9" -> {
+                val lastOperand = getLastOperand()
+                if (lastOperand.length < 16) {
+                    _input.value += buttonValue
+                }
+            }
             "." -> {
                 if (canAddDecimal()) {
                     _input.value += buttonValue
@@ -83,8 +91,17 @@ class CalculatorViewModel @Inject constructor(
         val expression = _input.value
         if (expression.isNotEmpty()) {
             viewModelScope.launch {
-                val calculationResult = repository.calculate(expression)
-                _result.value = calculationResult.result.toString()
+                try {
+                    val calculationResult = repository.calculate(expression)
+                    if (calculationResult.error == null) {
+//                        _result.value = calculationResult.result.toString()
+                        _result.value = formatResult(calculationResult.result)
+                    } else {
+                        _result.value = "Error: ${calculationResult.error}"
+                    }
+                } catch (e: ArithmeticException) {
+                    _result.value = "Error: Division by zero"
+                }
             }
         }
     }
@@ -297,7 +314,16 @@ class CalculatorViewModel @Inject constructor(
         if (currentInput.isNotEmpty()) {
             val lastNumber = extractLastNumber(currentInput)
             if (lastNumber != null) {
-                _input.value = currentInput.dropLast(lastNumber.length) + "($lastNumber)^(-1)"
+                try {
+                    val number = evaluateLastNumber(lastNumber)
+                    if (number == 0.0) {
+                        _result.value = "Error: Division by zero"
+                    } else {
+                        _input.value = currentInput.dropLast(lastNumber.length) + "($lastNumber)^(-1)"
+                    }
+                } catch (e: NumberFormatException) {
+                    _result.value = "Error: Invalid number"
+                }
             }
         }
     }
@@ -398,5 +424,25 @@ class CalculatorViewModel @Inject constructor(
         } else {
             lastNumber.toDouble()
         }
+    }
+
+    private fun formatResult(value: Double): String {
+        return if (value % 1.0 == 0.0) {
+            value.toLong().toString()
+        } else {
+            roundResult(value, 10).toString()
+        }
+    }
+
+    private fun getLastOperand(): String {
+        val expression = _input.value
+        val parts = expression.split("+", "-", "*", "/")
+        return parts.lastOrNull() ?: ""
+    }
+
+
+    private fun roundResult(value: Double, precision: Int = 10): Double {
+        val scale = 10.0.pow(precision)
+        return round(value * scale) / scale
     }
 }
