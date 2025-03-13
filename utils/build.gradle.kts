@@ -1,12 +1,10 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
-    id("com.google.dagger.hilt.android")
-    id("kotlin-kapt")
 }
 
 android {
-    namespace = "com.example.data"
+    namespace = "com.example.utils"
     compileSdk = 35
 
     defaultConfig {
@@ -36,22 +34,10 @@ android {
 
 dependencies {
 
-    implementation(project(":domain"))
-
-    implementation("com.google.dagger:hilt-android:2.51.1")
-    implementation(libs.firebase.firestore.ktx)
-    kapt("com.google.dagger:hilt-android-compiler:2.51.1")
-
-
     implementation(libs.androidx.core.ktx)
-    implementation(files("C:\\University\\course_3\\sem_2\\lib\\exp4j-0.4.8.jar"))
-//    implementation(libs.androidx.appcompat)
-//    implementation(libs.material)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.material)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-}
-
-kapt {
-    correctErrorTypes = true
 }

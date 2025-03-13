@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -53,10 +54,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.calculator.presentation.viewmodel.CalculatorViewModel
+import com.example.calculator.presentation.viewmodel.DeviceViewModel
 import com.example.calculator.ui.theme.CalculatorTheme
 import com.example.utils.SoundManager
 import com.example.utils.TiltManager
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -66,6 +73,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var tiltManager: TiltManager
 
     private val viewModel: CalculatorViewModel by viewModels()
+    private val deviceViewModel: DeviceViewModel by viewModels()
     private lateinit var vibrator: Vibrator
 
     @Inject
@@ -73,6 +81,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val uuid = deviceViewModel.getOrCreateUuid()
+        Log.d("MainActivity", "Device UUID: $uuid")
+
+        viewModel.loadCalculationHistory(uuid)
+
         soundManager.loadSound(this, R.raw.roblox_death_sound_effect)
         tiltManager = TiltManager(this)
         installSplashScreen()
@@ -80,13 +94,27 @@ class MainActivity : ComponentActivity() {
 
         vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
 
+//        val fs = Firebase.firestore
+//        fs.collection("test1")
+//            .document().set(mapOf("name" to "Meow"))
+
         setContent {
-            CalculatorApp(
+            AppNavigation(
                 viewModel = viewModel,
+                uuid = uuid,
                 vibrate = ::vibrate,
                 playErrorSound = { soundManager.playSound(R.raw.roblox_death_sound_effect) },
                 tiltManager = tiltManager
             )
+
+//            CalculatorApp(
+//                viewModel = viewModel,
+//                uuid = uuid,
+//                vibrate = ::vibrate,
+//                playErrorSound = { soundManager.playSound(R.raw.roblox_death_sound_effect) },
+//                tiltManager = tiltManager
+//            )
+
 //            CalculatorTheme {
 //                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
 //                    Greeting(
@@ -133,11 +161,53 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun CalculatorApp(viewModel: CalculatorViewModel,
-                  vibrate: () -> Unit,
-                  playErrorSound: () -> Unit,
-                  tiltManager: TiltManager){
-    val input by viewModel.input.collectAsStateWithLifecycle()
+fun AppNavigation(
+    viewModel: CalculatorViewModel,
+    uuid: String,
+    vibrate: () -> Unit,
+    playErrorSound: () -> Unit,
+    tiltManager: TiltManager
+) {
+    val navController = rememberNavController()
+
+    NavHost(
+        navController = navController,
+        startDestination = "calculator"
+    ) {
+        composable("calculator") {
+            CalculatorApp(
+                viewModel = viewModel,
+                uuid = uuid,
+                vibrate = vibrate,
+                playErrorSound = playErrorSound,
+                tiltManager = tiltManager,
+                navigateToHistory = {
+                    navController.navigate("history")
+                }
+            )
+        }
+
+        composable("history") {
+            HistoryScreen(
+                history = viewModel.history.collectAsStateWithLifecycle().value,
+                onBackClick = {
+                    navController.popBackStack() // Previous screen
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun CalculatorApp(
+    viewModel: CalculatorViewModel,
+    uuid: String,
+    vibrate: () -> Unit,
+    playErrorSound: () -> Unit,
+    tiltManager: TiltManager,
+    navigateToHistory: () -> Unit
+){
+    val input by viewModel.input.collectAsStateWithLifecycle() // Subscribe on Flow and Convert Values into State
     val result by viewModel.result.collectAsStateWithLifecycle()
     val useDegrees by  viewModel.useDegrees.collectAsStateWithLifecycle()
 
@@ -194,27 +264,52 @@ fun CalculatorApp(viewModel: CalculatorViewModel,
                 )
             )
     ) {
-        if (isLandscape) {
-            LandscapeLayout(
-                input = input,
-                result = result,
-                onButtonClick = { viewModel.onButtonClick(it); vibrate() },
-                useDegrees = useDegrees,
-                onToggleDegrees = { viewModel.toggleUseDegrees() }
-            )
-        } else {
-            PortraitLayout(
-                input = input,
-                result = result,
-                onButtonClick = { viewModel.onButtonClick(it); vibrate() }
-            )
+
+        Column {
+//            Box(
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .padding(16.dp)
+//            ) {
+//                Button(
+//                    onClick = navigateToHistory,
+//                    modifier = Modifier.align(Alignment.TopEnd)
+//                ) {
+//                    Text(text = "History")
+//                }
+//            }
+
+            if (isLandscape) {
+                LandscapeLayout(
+                    input = input,
+                    result = result,
+                    onButtonClick = { buttonValue, uuid ->
+                        viewModel.onButtonClick(buttonValue, uuid)
+                        vibrate()
+                    },
+                    useDegrees = useDegrees,
+                    onToggleDegrees = { viewModel.toggleUseDegrees() },
+                    uuid = uuid,
+                    navigateToHistory = navigateToHistory
+                )
+            } else {
+                PortraitLayout(
+                    input = input,
+                    result = result,
+                    onButtonClick = { buttonValue, uuid ->
+                        viewModel.onButtonClick(buttonValue, uuid)
+                        vibrate()
+                    },
+                    uuid = uuid,
+                    navigateToHistory = navigateToHistory
+                )
+            }
         }
     }
-
 }
 
 @Composable
-fun CalculatorButtons(onButtonClick: (String) -> Unit) {
+fun CalculatorButtons(onButtonClick: (String, String) -> Unit, uuid: String) {
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -238,15 +333,6 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit) {
         listOf("sin", "cos", "tan", "1/x", "1", "2", "3", "-"),
         listOf("lg", "ln", "π", "e", "0", ".", "=", "+")
         )
-
-//    val advancedButtons = listOf(
-//        listOf("", "", "", ""),
-//        listOf("", "", "", ""),
-//        listOf("x²", "^", "√", "!"),
-//        listOf("sin", "cos", "tan", "1/x"),
-//        listOf("log", "ln", "π", "e"),
-//
-//    )
 
     val maxWidth = if (isLandscape) 600.dp else 400.dp
 
@@ -276,7 +362,7 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit) {
                             row.forEach { buttonValue ->
                                 if (buttonValue.isNotEmpty()) {
                                     Button(
-                                        onClick = { onButtonClick(buttonValue) },
+                                        onClick = { onButtonClick(buttonValue, uuid) },
                                         modifier = Modifier
                                             .aspectRatio(buttonAspectRatio)
                                             .size(buttonSize)
@@ -312,7 +398,7 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit) {
                     ) {
                         row.forEach { buttonValue ->
                             Button(
-                                onClick = { onButtonClick(buttonValue) },
+                                onClick = { onButtonClick(buttonValue, uuid) },
                                 modifier = Modifier
                                     .size(buttonSize)
                                     .weight(1f, fill = false)
@@ -336,7 +422,12 @@ fun CalculatorButtons(onButtonClick: (String) -> Unit) {
 }
 
 @Composable
-fun PortraitLayout(input: String, result: String, onButtonClick: (String) -> Unit) {
+fun PortraitLayout(input: String,
+                   result: String,
+                   onButtonClick: (String, String) -> Unit,
+                   uuid: String,
+                   navigateToHistory: () -> Unit
+                   ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -344,6 +435,16 @@ fun PortraitLayout(input: String, result: String, onButtonClick: (String) -> Uni
         verticalArrangement = Arrangement.Bottom,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+
+        Button(
+            onClick = navigateToHistory,
+            modifier = Modifier
+                .align(Alignment.Start)
+                .padding(8.dp)
+        ) {
+            Text(text = "History")
+        }
+
         // Field for Enter
         Box(
             modifier = Modifier
@@ -382,16 +483,18 @@ fun PortraitLayout(input: String, result: String, onButtonClick: (String) -> Uni
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        CalculatorButtons(onButtonClick = onButtonClick)
+        CalculatorButtons(onButtonClick = onButtonClick, uuid = uuid)
     }
 }
 
 @Composable
 fun LandscapeLayout(input: String,
                     result: String,
-                    onButtonClick: (String) -> Unit,
+                    onButtonClick: (String, String) -> Unit,
                     useDegrees: Boolean,
-                    onToggleDegrees: (Boolean) -> Unit
+                    onToggleDegrees: (Boolean) -> Unit,
+                    uuid: String,
+                    navigateToHistory: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -399,6 +502,8 @@ fun LandscapeLayout(input: String,
             .padding(2.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+
+
 
         // Field for Enter and Result
         Row(
@@ -451,14 +556,32 @@ fun LandscapeLayout(input: String,
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(8.dp)
         ) {
-            Text(text = "Radians")
-            Switch(
-                checked = useDegrees,
-                onCheckedChange = onToggleDegrees,
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
-            Text(text = "Degrees")
-            CalculatorButtons(onButtonClick = onButtonClick)
+            Column {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Radians")
+                    Switch(
+                        checked = useDegrees,
+                        onCheckedChange = onToggleDegrees,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                    Text(text = "Degrees")
+                }
+                Row {
+                    Button(
+                        onClick = navigateToHistory,
+                        modifier = Modifier
+//                            .align(Alignment.End)
+                            .padding(8.dp)
+                    ) {
+                        Text(text = "History")
+                    }
+                }
+
+            }
+
+            CalculatorButtons(onButtonClick = onButtonClick, uuid = uuid)
         }
     }
 }

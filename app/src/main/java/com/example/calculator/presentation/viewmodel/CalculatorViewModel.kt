@@ -1,8 +1,12 @@
 package com.example.calculator.presentation.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.domain.model.CalculationHistory
 import com.example.domain.repository.CalculatorRepository
+import com.example.domain.usecase.GetCalculationHistoryUseCase
+import com.example.domain.usecase.SaveCalculationHistoryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +21,9 @@ import kotlin.math.pow
 
 @HiltViewModel
 class CalculatorViewModel @Inject constructor(
-    private val repository: CalculatorRepository
+    private val repository: CalculatorRepository,
+    private val saveCalculationHistoryUseCase: SaveCalculationHistoryUseCase,
+    private val getCalculationHistoryUseCase: GetCalculationHistoryUseCase
 ) : ViewModel() {
 
     private val _input = MutableStateFlow("") // Current Enter
@@ -29,15 +35,18 @@ class CalculatorViewModel @Inject constructor(
     private val _useDegrees = MutableStateFlow(true)
     val useDegrees: StateFlow<Boolean> = _useDegrees
 
+    private val _history = MutableStateFlow<List<CalculationHistory>>(emptyList())
+    val history: StateFlow<List<CalculationHistory>> = _history
+
     private val _showAdvancedButtons = MutableStateFlow(false)
 
-    fun onButtonClick(buttonValue: String) {
+    fun onButtonClick(buttonValue: String, uuid: String) {
         when (buttonValue) {
             "C" -> {
                 _input.value = ""
                 _result.value = ""
             }
-            "=" -> calculateResult()
+            "=" -> calculateResult(uuid)
             "x²" -> squareNumber()
             "√" -> squareRoot()
             "%" -> calculatePercentage()
@@ -87,7 +96,7 @@ class CalculatorViewModel @Inject constructor(
         _useDegrees.value = !_useDegrees.value
     }
 
-    private fun calculateResult() {
+    private fun calculateResult(uuid: String) {
         val expression = _input.value
         if (expression.isNotEmpty()) {
             viewModelScope.launch {
@@ -96,6 +105,10 @@ class CalculatorViewModel @Inject constructor(
                     if (calculationResult.error == null) {
 //                        _result.value = calculationResult.result.toString()
                         _result.value = formatResult(calculationResult.result)
+
+                        // Save history
+                        val historyEntry = CalculationHistory(expression, _result.value)
+                        saveCalculationHistoryUseCase(uuid, historyEntry)
                     } else {
                         _result.value = "Error: ${calculationResult.error}"
                     }
@@ -104,6 +117,18 @@ class CalculatorViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    // Load History
+    fun loadCalculationHistory(uuid: String) {
+        getCalculationHistoryUseCase(uuid,
+            onSuccess = { historyList ->
+                _history.value = historyList
+            },
+            onFailure = { e ->
+                Log.e("CalculatorViewModel", "Error loading history", e)
+            }
+        )
     }
 
     private fun squareNumber() {
