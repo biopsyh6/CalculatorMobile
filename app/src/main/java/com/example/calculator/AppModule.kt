@@ -3,17 +3,22 @@ package com.example.calculator
 import android.content.Context
 import android.content.SharedPreferences
 import com.example.data.repository.CalculatorRepositoryImpl
+import com.example.data.repository.NotificationRepositoryImpl
 import com.example.domain.repository.CalculatorRepository
 import com.example.domain.repository.DeviceRepository
+import com.example.domain.repository.NotificationRepository
 import com.example.domain.usecase.CalculateExpressionUseCase
 import com.example.domain.usecase.GetCalculationHistoryUseCase
 import com.example.domain.usecase.GetOrCreateUuidUseCase
+import com.example.domain.usecase.GetThemeSettingsUseCase
 import com.example.domain.usecase.SaveCalculationHistoryUseCase
+import com.example.domain.usecase.SaveThemeSettingsUseCase
 import com.example.utils.SoundManager
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.messaging.FirebaseMessaging
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -70,5 +75,29 @@ object AppModule {
     @Singleton
     fun provideGetCalculationHistoryUseCase(deviceRepository: DeviceRepository): GetCalculationHistoryUseCase {
         return GetCalculationHistoryUseCase(deviceRepository)
+    }
+
+    @Provides
+    @Singleton
+    fun provideGetThemeSettingsUseCase(deviceRepository: DeviceRepository): GetThemeSettingsUseCase {
+        return GetThemeSettingsUseCase(deviceRepository)
+    }
+
+    @Provides
+    @Singleton
+    fun provideSaveThemeSettingsUseCase(deviceRepository: DeviceRepository): SaveThemeSettingsUseCase {
+        return SaveThemeSettingsUseCase(deviceRepository)
+    }
+
+    @Provides
+    @Singleton
+    fun provideFirebaseMessaging(): FirebaseMessaging {
+        return FirebaseMessaging.getInstance()
+    }
+
+    @Provides
+    @Singleton
+    fun provideNotificationRepository(firebaseMessaging: FirebaseMessaging): NotificationRepository {
+        return NotificationRepositoryImpl(firebaseMessaging)
     }
 }

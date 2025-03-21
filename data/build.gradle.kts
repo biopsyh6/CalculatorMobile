@@ -40,6 +40,8 @@ dependencies {
 
     implementation("com.google.dagger:hilt-android:2.51.1")
     implementation(libs.firebase.firestore.ktx)
+    implementation(libs.firebase.messaging)
+    implementation(libs.firebase.messaging.ktx)
     kapt("com.google.dagger:hilt-android-compiler:2.51.1")
 
 

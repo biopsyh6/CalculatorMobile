@@ -59,6 +59,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.calculator.presentation.viewmodel.CalculatorViewModel
 import com.example.calculator.presentation.viewmodel.DeviceViewModel
+import com.example.calculator.presentation.viewmodel.ThemeViewModel
 import com.example.calculator.ui.theme.CalculatorTheme
 import com.example.utils.SoundManager
 import com.example.utils.TiltManager
@@ -74,6 +75,7 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: CalculatorViewModel by viewModels()
     private val deviceViewModel: DeviceViewModel by viewModels()
+    private val themeViewModel: ThemeViewModel by viewModels()
     private lateinit var vibrator: Vibrator
 
     @Inject
@@ -81,6 +83,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+
+
 
         val uuid = deviceViewModel.getOrCreateUuid()
         Log.d("MainActivity", "Device UUID: $uuid")
@@ -92,6 +97,9 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         enableEdgeToEdge()
 
+        // Navigation Bar Settings
+
+
         vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
 
 //        val fs = Firebase.firestore
@@ -101,6 +109,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             AppNavigation(
                 viewModel = viewModel,
+                themeViewModel = themeViewModel,
                 uuid = uuid,
                 vibrate = ::vibrate,
                 playErrorSound = { soundManager.playSound(R.raw.roblox_death_sound_effect) },
@@ -163,6 +172,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppNavigation(
     viewModel: CalculatorViewModel,
+    themeViewModel: ThemeViewModel,
     uuid: String,
     vibrate: () -> Unit,
     playErrorSound: () -> Unit,
@@ -177,12 +187,16 @@ fun AppNavigation(
         composable("calculator") {
             CalculatorApp(
                 viewModel = viewModel,
+                themeViewModel = themeViewModel,
                 uuid = uuid,
                 vibrate = vibrate,
                 playErrorSound = playErrorSound,
                 tiltManager = tiltManager,
                 navigateToHistory = {
                     navController.navigate("history")
+                },
+                navigateToSettings = {
+                    navController.navigate("themeSettings")
                 }
             )
         }
@@ -190,8 +204,19 @@ fun AppNavigation(
         composable("history") {
             HistoryScreen(
                 history = viewModel.history.collectAsStateWithLifecycle().value,
+                themeViewModel = themeViewModel,
                 onBackClick = {
                     navController.popBackStack() // Previous screen
+                }
+            )
+        }
+
+        composable("themeSettings") {
+            ThemeSettingsScreen(
+                themeViewModel = themeViewModel,
+                uuid = uuid,
+                onBackClick = {
+                    navController.popBackStack()
                 }
             )
         }
@@ -201,12 +226,20 @@ fun AppNavigation(
 @Composable
 fun CalculatorApp(
     viewModel: CalculatorViewModel,
+    themeViewModel: ThemeViewModel,
     uuid: String,
     vibrate: () -> Unit,
     playErrorSound: () -> Unit,
     tiltManager: TiltManager,
-    navigateToHistory: () -> Unit
+    navigateToHistory: () -> Unit,
+    navigateToSettings: () -> Unit
 ){
+    val themeSettings by themeViewModel.themeSettings.collectAsStateWithLifecycle()
+
+    // Accept theme settings
+    val backgroundColor = Color(android.graphics.Color.parseColor(themeSettings.backgroundColor))
+    val textColor = Color(android.graphics.Color.parseColor(themeSettings.textColor))
+
     val input by viewModel.input.collectAsStateWithLifecycle() // Subscribe on Flow and Convert Values into State
     val result by viewModel.result.collectAsStateWithLifecycle()
     val useDegrees by  viewModel.useDegrees.collectAsStateWithLifecycle()
@@ -257,11 +290,12 @@ fun CalculatorApp(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                brush = Brush.radialGradient(
-                    colors = listOf(animatedColor1, animatedColor2),
-                    center = Offset(500f, 500f),
-                    radius = 700f
-                )
+                backgroundColor
+//                brush = Brush.radialGradient(
+//                    colors = listOf(animatedColor1, animatedColor2),
+//                    center = Offset(500f, 500f),
+//                    radius = 700f
+//                )
             )
     ) {
 
@@ -290,7 +324,9 @@ fun CalculatorApp(
                     useDegrees = useDegrees,
                     onToggleDegrees = { viewModel.toggleUseDegrees() },
                     uuid = uuid,
-                    navigateToHistory = navigateToHistory
+                    navigateToHistory = navigateToHistory,
+                    navigateToSettings = navigateToSettings,
+                    textColor = textColor
                 )
             } else {
                 PortraitLayout(
@@ -301,15 +337,24 @@ fun CalculatorApp(
                         vibrate()
                     },
                     uuid = uuid,
-                    navigateToHistory = navigateToHistory
+                    navigateToHistory = navigateToHistory,
+                    navigateToSettings = navigateToSettings,
+                    textColor = textColor
                 )
             }
         }
     }
+
+    // Load theme settings at startup
+    LaunchedEffect(Unit) {
+        themeViewModel.loadThemeSettings(uuid)
+    }
 }
 
 @Composable
-fun CalculatorButtons(onButtonClick: (String, String) -> Unit, uuid: String) {
+fun CalculatorButtons(onButtonClick: (String, String) -> Unit,
+                      uuid: String,
+                      textColor: Color) {
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -372,7 +417,8 @@ fun CalculatorButtons(onButtonClick: (String, String) -> Unit, uuid: String) {
                                         Text(
                                             text = buttonValue,
                                             fontSize = buttonFontSize,
-                                            fontWeight = FontWeight.Bold
+                                            fontWeight = FontWeight.Bold,
+                                            color = textColor
                                         )
                                     }
                                 } else {
@@ -408,7 +454,8 @@ fun CalculatorButtons(onButtonClick: (String, String) -> Unit, uuid: String) {
                                 Text(
                                     text = buttonValue,
                                     fontSize = buttonFontSize,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    color = textColor
                                 )
                             }
                         }
@@ -426,7 +473,9 @@ fun PortraitLayout(input: String,
                    result: String,
                    onButtonClick: (String, String) -> Unit,
                    uuid: String,
-                   navigateToHistory: () -> Unit
+                   navigateToHistory: () -> Unit,
+                   navigateToSettings: () -> Unit,
+                   textColor: Color
                    ) {
     Column(
         modifier = Modifier
@@ -442,7 +491,16 @@ fun PortraitLayout(input: String,
                 .align(Alignment.Start)
                 .padding(8.dp)
         ) {
-            Text(text = "History")
+            Text(text = "History", color = textColor)
+        }
+
+        Button(
+            onClick = navigateToSettings,
+            modifier = Modifier
+                .align(Alignment.Start)
+                .padding(8.dp)
+        ) {
+            Text(text = "Settings", color = textColor)
         }
 
         // Field for Enter
@@ -483,7 +541,11 @@ fun PortraitLayout(input: String,
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        CalculatorButtons(onButtonClick = onButtonClick, uuid = uuid)
+        CalculatorButtons(
+            onButtonClick = onButtonClick,
+            uuid = uuid,
+            textColor = textColor
+        )
     }
 }
 
@@ -494,7 +556,9 @@ fun LandscapeLayout(input: String,
                     useDegrees: Boolean,
                     onToggleDegrees: (Boolean) -> Unit,
                     uuid: String,
-                    navigateToHistory: () -> Unit
+                    navigateToHistory: () -> Unit,
+                    navigateToSettings: () -> Unit,
+                    textColor: Color
 ) {
     Column(
         modifier = Modifier
@@ -560,13 +624,13 @@ fun LandscapeLayout(input: String,
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = "Radians")
+                    Text(text = "Radians", color = textColor)
                     Switch(
                         checked = useDegrees,
                         onCheckedChange = onToggleDegrees,
                         modifier = Modifier.padding(horizontal = 8.dp)
                     )
-                    Text(text = "Degrees")
+                    Text(text = "Degrees", color = textColor)
                 }
                 Row {
                     Button(
@@ -575,13 +639,27 @@ fun LandscapeLayout(input: String,
 //                            .align(Alignment.End)
                             .padding(8.dp)
                     ) {
-                        Text(text = "History")
+                        Text(text = "History", color = textColor)
+                    }
+                }
+                Row {
+                    Button(
+                        onClick = navigateToSettings,
+                        modifier = Modifier
+//                            .align(Alignment.End)
+                            .padding(8.dp)
+                    ) {
+                        Text(text = "Settings", color = textColor)
                     }
                 }
 
             }
 
-            CalculatorButtons(onButtonClick = onButtonClick, uuid = uuid)
+            CalculatorButtons(
+                onButtonClick = onButtonClick,
+                uuid = uuid,
+                textColor = textColor
+            )
         }
     }
 }
