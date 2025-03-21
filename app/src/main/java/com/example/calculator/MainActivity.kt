@@ -1,5 +1,6 @@
 package com.example.calculator
 
+import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
@@ -63,8 +64,10 @@ import com.example.calculator.presentation.viewmodel.ThemeViewModel
 import com.example.calculator.ui.theme.CalculatorTheme
 import com.example.utils.SoundManager
 import com.example.utils.TiltManager
+import com.google.android.gms.tasks.OnCompleteListener
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.messaging.FirebaseMessaging
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -85,7 +88,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
 
+        FirebaseMessaging.getInstance().token.addOnCompleteListener(OnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                Log.w(TAG, "Fetching FCM registration token failed", task.exception)
+                return@OnCompleteListener
+            }
 
+            // Get new FCM registration token
+            val token = task.result
+
+            // Log and toast
+            val msg = "FCM Token: $token"
+            Log.d(TAG, msg)
+        })
 
         val uuid = deviceViewModel.getOrCreateUuid()
         Log.d("MainActivity", "Device UUID: $uuid")
@@ -101,10 +116,6 @@ class MainActivity : ComponentActivity() {
 
 
         vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-
-//        val fs = Firebase.firestore
-//        fs.collection("test1")
-//            .document().set(mapOf("name" to "Meow"))
 
         setContent {
             AppNavigation(

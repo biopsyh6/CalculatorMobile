@@ -1,5 +1,7 @@
 package com.example.data.service
 
+import android.content.ContentValues.TAG
+import android.util.Log
 import com.example.domain.repository.NotificationRepository
 import com.google.firebase.messaging.FirebaseMessagingService
 import dagger.hilt.EntryPoint
@@ -27,7 +29,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        super.onNewToken(token)
+//        super.onNewToken(token)
+        Log.d(TAG, "Refreshed token: $token")
     }
 }
 
