@@ -42,8 +42,13 @@ dependencies {
     implementation(libs.firebase.firestore.ktx)
     implementation(libs.firebase.messaging)
     implementation(libs.firebase.messaging.ktx)
+    implementation(libs.androidx.credentials)
     kapt("com.google.dagger:hilt-android-compiler:2.51.1")
 
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.androidx.biometric)
+    implementation (libs.androidx.security.crypto)
 
     implementation(libs.androidx.core.ktx)
     implementation(files("C:\\University\\course_3\\sem_2\\lib\\exp4j-0.4.8.jar"))

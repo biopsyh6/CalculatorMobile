@@ -2,6 +2,7 @@ package com.example.calculator
 
 import android.content.ContentValues.TAG
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
@@ -58,6 +59,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKeys
 import com.example.calculator.presentation.viewmodel.CalculatorViewModel
 import com.example.calculator.presentation.viewmodel.DeviceViewModel
 import com.example.calculator.presentation.viewmodel.ThemeViewModel
@@ -86,6 +89,21 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val sharedPreferences = EncryptedSharedPreferences.create(
+            "secure_prefs",
+            MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC), // Ключ для шифрования
+            this,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV, // Схема шифрования ключей
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM // Схема шифрования значений
+        )
+
+        val isAuthenticated = sharedPreferences.getBoolean("is_authenticated", false)
+        if (!isAuthenticated) {
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+            return
+        }
 
 
         FirebaseMessaging.getInstance().token.addOnCompleteListener(OnCompleteListener { task ->
@@ -162,6 +180,26 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         soundManager.release()
+        val sharedPreferences = EncryptedSharedPreferences.create(
+            "secure_prefs",
+            MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC),
+            this,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+        sharedPreferences.edit().putBoolean("is_authenticated", false).apply()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        val sharedPreferences = EncryptedSharedPreferences.create(
+            "secure_prefs",
+            MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC),
+            this,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+        sharedPreferences.edit().putBoolean("is_authenticated", false).apply()
     }
 
     private fun vibrate() {

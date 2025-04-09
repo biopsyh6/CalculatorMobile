@@ -68,6 +68,11 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.messaging)
 
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.androidx.biometric)
+    implementation (libs.androidx.security.crypto)
+
     implementation(libs.androidx.navigation.compose)
 
     testImplementation(libs.junit)
